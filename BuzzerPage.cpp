@@ -3,6 +3,8 @@
 
 #include "BuzzerPage.h"
 #include "screen_manager.h"
+#include "font_persian_16.h"
+#include "font_persian_24.h"
 
 extern "C"
 {
@@ -60,6 +62,79 @@ static bool buzzer_focus_back =
 
 static bool page_was_active =
     false;
+
+// ==================================================
+// Configure Persian Labels
+// ==================================================
+
+static void configure_buzzer_labels(void)
+{
+    // --------------------------------------------------
+    // Buzzer Settings Page Label
+    // --------------------------------------------------
+
+    if (objects.buzzer_settings_page_label != NULL)
+    {
+        lv_label_set_text(
+            objects.buzzer_settings_page_label,
+            "تنظیمات بازر"
+        );
+
+        lv_obj_set_style_text_font(
+            objects.buzzer_settings_page_label,
+            &font_persian_24,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+        lv_obj_set_style_base_dir(
+            objects.buzzer_settings_page_label,
+            LV_BASE_DIR_RTL,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+        lv_obj_set_style_text_color(
+            objects.buzzer_settings_page_label,
+            lv_color_hex(0xebf900),
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+    }
+
+    // --------------------------------------------------
+    // Back Text
+    // --------------------------------------------------
+
+    if (objects.back_text_buzzer_page != NULL)
+    {
+        lv_label_set_text(
+            objects.back_text_buzzer_page,
+            "بازگشت"
+        );
+
+        lv_obj_set_style_text_font(
+            objects.back_text_buzzer_page,
+            &font_persian_16,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+        lv_obj_set_style_base_dir(
+            objects.back_text_buzzer_page,
+            LV_BASE_DIR_RTL,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+        lv_obj_set_style_text_color(
+            objects.back_text_buzzer_page,
+            lv_color_hex(0x000000),
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+    }
+}
 
 // ==================================================
 // Find Dropdown
@@ -358,6 +433,12 @@ void buzzer_page_init(void)
 
     page_was_active =
         false;
+
+    // --------------------------------------------------
+    // Persian Labels
+    // --------------------------------------------------
+
+    configure_buzzer_labels();
 
     buzzer_dropdown_find();
 

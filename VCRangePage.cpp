@@ -4,6 +4,9 @@
 
 #include "VCRangePage.h"
 #include "screen_manager.h"
+#include "font_persian_16.h"
+#include "font_persian_14.h"
+#include "font_persian_24.h"
 
 extern "C"
 {
@@ -42,6 +45,12 @@ extern lv_obj_t *tick_value_change_obj;
 // ==================================================
 
 #define FOCUS_COLOR 0xFF0000
+
+// ==================================================
+// Header Text Color
+// ==================================================
+
+#define VC_HEADER_COLOR 0xFBFF00
 
 // ==================================================
 // Focus Index
@@ -114,6 +123,183 @@ static bool vc_range_screen_active(void)
     return screen_manager_is(
         SCREEN_ID_V_C_RANGE_SETTINGS
     );
+}
+
+// ==================================================
+// Configure Persian Labels
+// ==================================================
+
+static void configure_vc_range_labels(void)
+{
+    // --------------------------------------------------
+    // Header
+    // --------------------------------------------------
+
+    if (objects.vc_text_header_vc_page != NULL)
+    {
+        lv_label_set_text(
+            objects.vc_text_header_vc_page,
+            "تنظیمات ولتاژ و جریان"
+        );
+
+        lv_obj_set_style_text_font(
+            objects.vc_text_header_vc_page,
+            &font_persian_24,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+        lv_obj_set_style_base_dir(
+            objects.vc_text_header_vc_page,
+            LV_BASE_DIR_RTL,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+        lv_obj_set_style_text_color(
+            objects.vc_text_header_vc_page,
+            lv_color_hex(VC_HEADER_COLOR),
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+    }
+
+    // --------------------------------------------------
+    // Voltage Minimum Text
+    // --------------------------------------------------
+
+    if (objects.v_min_text != NULL)
+    {
+        lv_label_set_text(
+            objects.v_min_text,
+            "حداقل ولتاژ"
+        );
+
+        lv_obj_set_style_text_font(
+            objects.v_min_text,
+            &font_persian_14,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+        lv_obj_set_style_base_dir(
+            objects.v_min_text,
+            LV_BASE_DIR_RTL,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+    }
+
+    // --------------------------------------------------
+    // Voltage Maximum Text
+    // --------------------------------------------------
+
+    if (objects.v_max_text != NULL)
+    {
+        lv_label_set_text(
+            objects.v_max_text,
+            "حداکثر ولتاژ"
+        );
+
+        lv_obj_set_style_text_font(
+            objects.v_max_text,
+            &font_persian_14,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+        lv_obj_set_style_base_dir(
+            objects.v_max_text,
+            LV_BASE_DIR_RTL,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+    }
+
+    // --------------------------------------------------
+    // Current Minimum Text
+    // --------------------------------------------------
+
+    if (objects.c_min_text != NULL)
+    {
+        lv_label_set_text(
+            objects.c_min_text,
+            "حداقل جریان"
+        );
+
+        lv_obj_set_style_text_font(
+            objects.c_min_text,
+            &font_persian_14,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+        lv_obj_set_style_base_dir(
+            objects.c_min_text,
+            LV_BASE_DIR_RTL,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+    }
+
+    // --------------------------------------------------
+    // Current Maximum Text
+    // --------------------------------------------------
+
+    if (objects.c_max_text != NULL)
+    {
+        lv_label_set_text(
+            objects.c_max_text,
+            "حداکثر جریان"
+        );
+
+        lv_obj_set_style_text_font(
+            objects.c_max_text,
+            &font_persian_14,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+        lv_obj_set_style_base_dir(
+            objects.c_max_text,
+            LV_BASE_DIR_RTL,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+    }
+
+    // --------------------------------------------------
+    // Exit Text
+    // --------------------------------------------------
+
+    if (objects.exit_from_v_c_menu_text != NULL)
+    {
+        lv_label_set_text(
+            objects.exit_from_v_c_menu_text,
+            "خروج"
+        );
+
+        lv_obj_set_style_text_font(
+            objects.exit_from_v_c_menu_text,
+            &font_persian_16,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+        lv_obj_set_style_base_dir(
+            objects.exit_from_v_c_menu_text,
+            LV_BASE_DIR_RTL,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+        lv_obj_set_style_text_color(
+            objects.exit_from_v_c_menu_text,
+            lv_color_hex(0x000000),
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+    }
 }
 
 // ==================================================
@@ -866,6 +1052,12 @@ void vc_range_page_init(void)
 
     gui_last_current_max =
         -1000.0f;
+
+    // --------------------------------------------------
+    // Configure Persian Labels
+    // --------------------------------------------------
+
+    configure_vc_range_labels();
 }
 
 // ==================================================

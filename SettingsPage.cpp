@@ -3,6 +3,7 @@
 
 #include "SettingsPage.h"
 #include "screen_manager.h"
+#include "font_persian_16.h"
 
 extern "C"
 {
@@ -30,6 +31,121 @@ static int settings_selection =
 
 static bool page_was_active =
     false;
+
+// ==================================================
+// Configure Persian Labels
+// ==================================================
+
+static void configure_settings_labels(void)
+{
+    // --------------------------------------------------
+    // Buzzer
+    // --------------------------------------------------
+
+    if (objects.buzzer_text_settings_page != NULL)
+    {
+        lv_label_set_text(
+            objects.buzzer_text_settings_page,
+            "بازر"
+        );
+
+        lv_obj_set_style_text_font(
+            objects.buzzer_text_settings_page,
+            &font_persian_16,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+        lv_obj_set_style_base_dir(
+            objects.buzzer_text_settings_page,
+            LV_BASE_DIR_RTL,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+    }
+
+    // --------------------------------------------------
+    // Touch Calibration
+    // --------------------------------------------------
+
+    if (objects.calibration_text_settings_page != NULL)
+    {
+        lv_label_set_text(
+            objects.calibration_text_settings_page,
+            "کالیبراسیون"
+        );
+
+        lv_obj_set_style_text_font(
+            objects.calibration_text_settings_page,
+            &font_persian_16,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+        lv_obj_set_style_base_dir(
+            objects.calibration_text_settings_page,
+            LV_BASE_DIR_RTL,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+    }
+
+    // --------------------------------------------------
+    // Voltage / Current Range
+    // --------------------------------------------------
+
+    if (objects.vc_range_text_settings_page != NULL)
+    {
+        lv_label_set_text(
+            objects.vc_range_text_settings_page,
+            "محدوده خطا"
+        );
+
+        lv_obj_set_style_text_font(
+            objects.vc_range_text_settings_page,
+            &font_persian_16,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+        lv_obj_set_style_base_dir(
+            objects.vc_range_text_settings_page,
+            LV_BASE_DIR_RTL,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+    }
+
+    // --------------------------------------------------
+    // Exit
+    // --------------------------------------------------
+
+    if (objects.exit_label_settinhs_page != NULL)
+    {
+        lv_label_set_text(
+            objects.exit_label_settinhs_page,
+            "خروج"
+        );
+
+        lv_obj_set_style_text_font(
+            objects.exit_label_settinhs_page,
+            &font_persian_16,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+        lv_obj_set_style_base_dir(
+            objects.exit_label_settinhs_page,
+            LV_BASE_DIR_RTL,
+            LV_PART_MAIN |
+            LV_STATE_DEFAULT
+        );
+
+    }
+}
 
 // ==================================================
 // Clear Focus
@@ -144,6 +260,12 @@ void settings_page_init(void)
 
     page_was_active =
         false;
+
+    // --------------------------------------------------
+    // Persian Labels
+    // --------------------------------------------------
+
+    configure_settings_labels();
 }
 
 // ==================================================
