@@ -1,5 +1,7 @@
+
 #include "actions.h"
 #include "screens.h"
+#include "vars.h"
 
 #include "screen_manager.h"
 #include "touchCalibration.h"
@@ -191,3 +193,4 @@ void action_current_max_changed(lv_event_t *e)
         (float)value
     );
 }
+

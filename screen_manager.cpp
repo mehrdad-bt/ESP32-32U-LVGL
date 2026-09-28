@@ -6,10 +6,14 @@
 extern "C"
 {
 #include "ui/screens.h"
+
+void debug_runtime(
+    const char *tag
+);
 }
 
 // ==================================================
-// Screen Manager State
+// State
 // ==================================================
 
 static enum ScreensEnum current_screen =
@@ -25,7 +29,34 @@ static bool screen_reload_pending =
     false;
 
 // ==================================================
-// Get LVGL Object for Screen
+// Screen Name
+// ==================================================
+
+static const char *screen_name(
+    enum ScreensEnum screen
+)
+{
+    switch (screen)
+    {
+        case SCREEN_ID_MAIN:
+            return "MAIN";
+
+        case SCREEN_ID_SETTINGS_PAGE:
+            return "SETTINGS";
+
+        case SCREEN_ID_BUZZER_SETTINGS:
+            return "BUZZER";
+
+        case SCREEN_ID_V_C_RANGE_SETTINGS:
+            return "V_C_RANGE";
+
+        default:
+            return "UNKNOWN";
+    }
+}
+
+// ==================================================
+// Get Screen Object
 // ==================================================
 
 static lv_obj_t *get_screen_object(
@@ -59,50 +90,76 @@ static void load_screen_now(
     enum ScreensEnum screen
 )
 {
-    // --------------------------------------------------
-    // Get LVGL screen object
-    // --------------------------------------------------
+    uint32_t start =
+        micros();
 
     lv_obj_t *screen_obj =
-        get_screen_object(screen);
+        get_screen_object(
+            screen
+        );
+
+    Serial.printf(
+        "[DBG][SCREEN] LOAD %s from %s obj=%s\n",
+        screen_name(screen),
+        screen_name(current_screen),
+        screen_obj != NULL
+        ? "VALID"
+        : "NULL"
+    );
 
     if (screen_obj == NULL)
     {
+        Serial.println(
+            "[DBG][SCREEN] ERROR target NULL"
+        );
+
         return;
     }
 
-    // --------------------------------------------------
-    // Already on requested screen
-    // --------------------------------------------------
-
-    if (screen == current_screen)
+    if (
+        screen ==
+        current_screen
+    )
     {
+        Serial.println(
+            "[DBG][SCREEN] already active"
+        );
+
         return;
     }
 
     // --------------------------------------------------
-    // Load screen
-    //
-    // IMPORTANT:
-    // Do NOT call lv_obj_invalidate()
-    // Do NOT call lv_refr_now()
-    //
-    // LVGL will handle the refresh through
-    // lv_timer_handler().
+    // Actual screen load
     // --------------------------------------------------
 
-    lv_scr_load(screen_obj);
-
-    // --------------------------------------------------
-    // Update current screen state
-    // --------------------------------------------------
+    lv_scr_load(
+        screen_obj
+    );
 
     current_screen =
         screen;
+
+    uint32_t elapsed =
+        micros() - start;
+
+    Serial.printf(
+        "[DBG][SCREEN] LOAD DONE %s dt=%lu us\n",
+        screen_name(current_screen),
+        elapsed
+    );
+
+    if (
+        elapsed > 100000U
+    )
+    {
+        debug_runtime(
+            "SLOW SCREEN LOAD"
+        );
+    }
 }
 
 // ==================================================
-// Initialize Screen Manager
+// Init
 // ==================================================
 
 void screen_manager_init(void)
@@ -119,28 +176,30 @@ void screen_manager_init(void)
     screen_reload_pending =
         false;
 
-    // --------------------------------------------------
-    // Get main screen
-    // --------------------------------------------------
-
     lv_obj_t *main_screen =
         objects.main;
 
-    if (main_screen == NULL)
+    if (
+        main_screen == NULL
+    )
     {
+        Serial.println(
+            "[DBG][SCREEN] ERROR MAIN NULL"
+        );
+
         return;
     }
 
-    // --------------------------------------------------
-    // Load initial screen
-    //
-    // No forced refresh here.
-    // lv_timer_handler() in loop()
-    // will perform the refresh.
-    // --------------------------------------------------
+    Serial.println(
+        "[DBG][SCREEN] loading MAIN"
+    );
 
     lv_scr_load(
         main_screen
+    );
+
+    Serial.println(
+        "[DBG][SCREEN] MAIN loaded"
     );
 }
 
@@ -152,38 +211,52 @@ void screen_manager_show(
     enum ScreensEnum screen
 )
 {
-    // --------------------------------------------------
-    // Ignore invalid screen
-    // --------------------------------------------------
+    lv_obj_t *target =
+        get_screen_object(
+            screen
+        );
 
-    if (get_screen_object(screen) == NULL)
+    Serial.printf(
+        "[DBG][SCREEN] REQUEST %s from %s target=%s\n",
+        screen_name(screen),
+        screen_name(current_screen),
+        target != NULL
+        ? "VALID"
+        : "NULL"
+    );
+
+    if (
+        target == NULL
+    )
     {
+        Serial.println(
+            "[DBG][SCREEN] REQUEST FAILED: NULL target"
+        );
+
         return;
     }
-
-    // --------------------------------------------------
-    // If there is already a request for this screen,
-    // there is nothing new to do.
-    // --------------------------------------------------
 
     if (
         screen_change_pending &&
         pending_screen == screen
     )
     {
+        Serial.println(
+            "[DBG][SCREEN] already pending"
+        );
+
         return;
     }
-
-    // --------------------------------------------------
-    // If already on this screen, don't schedule
-    // another screen change.
-    // --------------------------------------------------
 
     if (
         !screen_change_pending &&
         current_screen == screen
     )
     {
+        Serial.println(
+            "[DBG][SCREEN] already current"
+        );
+
         return;
     }
 
@@ -195,18 +268,19 @@ void screen_manager_show(
 
     screen_reload_pending =
         false;
+
+    Serial.printf(
+        "[DBG][SCREEN] REQUEST PENDING %s\n",
+        screen_name(pending_screen)
+    );
 }
 
 // ==================================================
-// Request Current Screen Reload
+// Reload Current Screen
 // ==================================================
 
 void screen_manager_reload(void)
 {
-    // --------------------------------------------------
-    // Reload current screen
-    // --------------------------------------------------
-
     pending_screen =
         current_screen;
 
@@ -215,36 +289,31 @@ void screen_manager_reload(void)
 
     screen_reload_pending =
         true;
+
+    Serial.printf(
+        "[DBG][SCREEN] RELOAD REQUEST %s\n",
+        screen_name(current_screen)
+    );
 }
 
 // ==================================================
-// Process Pending Screen Request
+// Process
 // ==================================================
 
 void screen_manager_process(void)
 {
-    // --------------------------------------------------
-    // Nothing pending
-    // --------------------------------------------------
-
-    if (!screen_change_pending)
+    if (
+        !screen_change_pending
+    )
     {
         return;
     }
 
-    // --------------------------------------------------
-    // Copy request locally
-    // --------------------------------------------------
-
-    enum ScreensEnum requested_screen =
+    enum ScreensEnum requested =
         pending_screen;
 
     bool reload =
         screen_reload_pending;
-
-    // --------------------------------------------------
-    // Clear pending state immediately
-    // --------------------------------------------------
 
     screen_change_pending =
         false;
@@ -252,63 +321,65 @@ void screen_manager_process(void)
     screen_reload_pending =
         false;
 
-    // --------------------------------------------------
-    // Same screen without reload
-    // --------------------------------------------------
-
-    if (
-        !reload &&
-        requested_screen ==
-        current_screen
-    )
-    {
-        return;
-    }
-
-    // --------------------------------------------------
-    // Reload current screen
-    //
-    // lv_scr_load() may not cause the behavior we want
-    // when the screen is already active, so explicitly
-    // invalidate only in the reload case.
-    // --------------------------------------------------
+    Serial.printf(
+        "[DBG][SCREEN] PROCESS target=%s current=%s reload=%d\n",
+        screen_name(requested),
+        screen_name(current_screen),
+        reload ? 1 : 0
+    );
 
     if (
         reload &&
-        requested_screen ==
+        requested ==
         current_screen
     )
     {
         lv_obj_t *screen_obj =
             get_screen_object(
-                requested_screen
+                requested
             );
 
-        if (screen_obj == NULL)
+        if (
+            screen_obj == NULL
+        )
         {
+            Serial.println(
+                "[DBG][SCREEN] RELOAD FAILED NULL"
+            );
+
             return;
         }
 
-        // Force the screen to be redrawn only
-        // when an explicit reload was requested.
         lv_obj_invalidate(
             screen_obj
+        );
+
+        Serial.println(
+            "[DBG][SCREEN] RELOAD DONE"
         );
 
         return;
     }
 
-    // --------------------------------------------------
-    // Normal screen change
-    // --------------------------------------------------
+    if (
+        requested ==
+        current_screen
+    )
+    {
+        Serial.println(
+            "[DBG][SCREEN] PROCESS ignored same screen"
+        );
+
+        return;
+    }
 
     load_screen_now(
-        requested_screen
+        requested
     );
 }
 
 // ==================================================
-// Get Current Screen
+// Get Current
 // ==================================================
 
 enum ScreensEnum screen_manager_get(void)
@@ -317,7 +388,7 @@ enum ScreensEnum screen_manager_get(void)
 }
 
 // ==================================================
-// Check Current Screen
+// Is Current
 // ==================================================
 
 bool screen_manager_is(

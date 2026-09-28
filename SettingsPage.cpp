@@ -38,10 +38,6 @@ static bool page_was_active =
 
 static void configure_settings_labels(void)
 {
-    // --------------------------------------------------
-    // Buzzer
-    // --------------------------------------------------
-
     if (objects.buzzer_text_settings_page != NULL)
     {
         lv_label_set_text(
@@ -62,12 +58,7 @@ static void configure_settings_labels(void)
             LV_PART_MAIN |
             LV_STATE_DEFAULT
         );
-
     }
-
-    // --------------------------------------------------
-    // Touch Calibration
-    // --------------------------------------------------
 
     if (objects.calibration_text_settings_page != NULL)
     {
@@ -89,12 +80,7 @@ static void configure_settings_labels(void)
             LV_PART_MAIN |
             LV_STATE_DEFAULT
         );
-
     }
-
-    // --------------------------------------------------
-    // Voltage / Current Range
-    // --------------------------------------------------
 
     if (objects.vc_range_text_settings_page != NULL)
     {
@@ -116,12 +102,7 @@ static void configure_settings_labels(void)
             LV_PART_MAIN |
             LV_STATE_DEFAULT
         );
-
     }
-
-    // --------------------------------------------------
-    // Exit
-    // --------------------------------------------------
 
     if (objects.exit_label_settinhs_page != NULL)
     {
@@ -143,7 +124,6 @@ static void configure_settings_labels(void)
             LV_PART_MAIN |
             LV_STATE_DEFAULT
         );
-
     }
 }
 
@@ -202,29 +182,24 @@ static void apply_settings_highlight(void)
 {
     clear_settings_highlight();
 
-    lv_obj_t *selected =
-        NULL;
+    lv_obj_t *selected = NULL;
 
     switch (settings_selection)
     {
         case SETTINGS_OPTION_BUZZER:
-            selected =
-                objects.buzzer;
+            selected = objects.buzzer;
             break;
 
         case SETTINGS_OPTION_CALIBRATION:
-            selected =
-                objects.touch_calibration;
+            selected = objects.touch_calibration;
             break;
 
         case SETTINGS_OPTION_VC_RANGE:
-            selected =
-                objects.voltage_range;
+            selected = objects.voltage_range;
             break;
 
         case SETTINGS_OPTION_BACK:
-            selected =
-                objects.exit_settings;
+            selected = objects.exit_settings;
             break;
 
         default:
@@ -255,17 +230,8 @@ static void apply_settings_highlight(void)
 
 void settings_page_init(void)
 {
-    settings_selection =
-        SETTINGS_OPTION_BUZZER;
-
-    page_was_active =
-        false;
-
-    // --------------------------------------------------
-    // Persian Labels
-    // --------------------------------------------------
-
-    configure_settings_labels();
+    settings_selection = SETTINGS_OPTION_BUZZER;
+    page_was_active = false;
 }
 
 // ==================================================
@@ -274,24 +240,17 @@ void settings_page_init(void)
 
 void settings_page_update(void)
 {
-    if (
-        !screen_manager_is(
-            SCREEN_ID_SETTINGS_PAGE
-        )
-    )
+    if (!screen_manager_is(SCREEN_ID_SETTINGS_PAGE))
     {
-        page_was_active =
-            false;
-
+        page_was_active = false;
         return;
     }
 
     if (!page_was_active)
     {
+        configure_settings_labels();
         apply_settings_highlight();
-
-        page_was_active =
-            true;
+        page_was_active = true;
     }
 }
 
@@ -301,24 +260,16 @@ void settings_page_update(void)
 
 void settings_page_handle_right(void)
 {
-    if (
-        !screen_manager_is(
-            SCREEN_ID_SETTINGS_PAGE
-        )
-    )
+    if (!screen_manager_is(SCREEN_ID_SETTINGS_PAGE))
     {
         return;
     }
 
     settings_selection++;
 
-    if (
-        settings_selection >
-        SETTINGS_OPTION_BACK
-    )
+    if (settings_selection > SETTINGS_OPTION_BACK)
     {
-        settings_selection =
-            SETTINGS_OPTION_BUZZER;
+        settings_selection = SETTINGS_OPTION_BUZZER;
     }
 
     apply_settings_highlight();
@@ -330,11 +281,7 @@ void settings_page_handle_right(void)
 
 void settings_page_handle_select(void)
 {
-    if (
-        !screen_manager_is(
-            SCREEN_ID_SETTINGS_PAGE
-        )
-    )
+    if (!screen_manager_is(SCREEN_ID_SETTINGS_PAGE))
     {
         return;
     }
@@ -342,35 +289,19 @@ void settings_page_handle_select(void)
     switch (settings_selection)
     {
         case SETTINGS_OPTION_BUZZER:
-
-            action_go_to_buzzer_settings(
-                NULL
-            );
-
+            action_go_to_buzzer_settings(NULL);
             break;
 
         case SETTINGS_OPTION_CALIBRATION:
-
-            action_go_to_touch_calibration(
-                NULL
-            );
-
+            action_go_to_touch_calibration(NULL);
             break;
 
         case SETTINGS_OPTION_VC_RANGE:
-
-            action_go_to_v_c_range_settings(
-                NULL
-            );
-
+            action_go_to_v_c_range_settings(NULL);
             break;
 
         case SETTINGS_OPTION_BACK:
-
-            action_exit_to_main_page(
-                NULL
-            );
-
+            action_exit_to_main_page(NULL);
             break;
 
         default:

@@ -8,7 +8,8 @@
 // UART Buffer Configuration
 // ==================================================
 
-#define UART_BUFFER_SIZE 128
+#define UART_BUFFER_SIZE       128
+#define UART_MAX_BYTES_PER_CALL 32
 
 static char uart_buffer[
     UART_BUFFER_SIZE
@@ -61,10 +62,32 @@ void serial_init(void)
 
 void uart_receive(void)
 {
-    while (Serial.available())
+    uint16_t processed_bytes =
+        0;
+
+    /*
+     * مهم:
+     *
+     * قبلاً while (Serial.available()) بدون محدودیت بود.
+     *
+     * اگر ورودی UART دائماً داده داشته باشد،
+     * این حلقه می‌تواند مدت زیادی ادامه پیدا کند
+     * و tasks_run() فرصت برگشت به loop() را پیدا نکند.
+     *
+     * در هر بار اجرای این تابع حداکثر
+     * UART_MAX_BYTES_PER_CALL بایت پردازش می‌کنیم.
+     */
+
+    while (
+        Serial.available() &&
+        processed_bytes <
+        UART_MAX_BYTES_PER_CALL
+    )
     {
         char c =
             Serial.read();
+
+        processed_bytes++;
 
         // --------------------------------------------------
         // End of message
@@ -75,7 +98,10 @@ void uart_receive(void)
             c == '\r'
         )
         {
-            if (uart_index > 0)
+            if (
+                uart_index >
+                0
+            )
             {
                 uart_buffer[
                     uart_index
@@ -84,12 +110,16 @@ void uart_receive(void)
                 // --------------------------------------------------
                 // Parse:
                 // Voltage,Current
+                //
                 // Example:
                 // 23.75,0.82
                 // --------------------------------------------------
 
-                float voltage;
-                float current;
+                float voltage =
+                    0.0f;
+
+                float current =
+                    0.0f;
 
                 int result =
                     sscanf(
@@ -99,7 +129,10 @@ void uart_receive(void)
                         &current
                     );
 
-                if (result == 2)
+                if (
+                    result ==
+                    2
+                )
                 {
                     uart_voltage =
                         voltage;
@@ -112,10 +145,12 @@ void uart_receive(void)
                 }
 
                 // --------------------------------------------------
-                // Store original message if requested
+                // Store original message
                 // --------------------------------------------------
 
-                if (!uart_message_ready)
+                if (
+                    !uart_message_ready
+                )
                 {
                     strncpy(
                         uart_message,
@@ -138,6 +173,11 @@ void uart_receive(void)
                 uart_index =
                     0;
             }
+
+            /*
+             * اگر چند newline پشت سر هم وجود داشته باشد،
+             * همین‌جا پیام خالی نادیده گرفته می‌شود.
+             */
         }
 
         // --------------------------------------------------
@@ -155,6 +195,17 @@ void uart_receive(void)
                     uart_index++
                 ] = c;
             }
+            else
+            {
+                /*
+                 * Buffer full:
+                 *
+                 * پیام فعلی معتبر نیست.
+                 * تا newline بعدی جمع‌آوری را از نو شروع می‌کنیم.
+                 */
+                uart_index =
+                    0;
+            }
         }
     }
 }
@@ -168,7 +219,9 @@ bool uart_get_message(
     uint16_t size
 )
 {
-    if (!uart_message_ready)
+    if (
+        !uart_message_ready
+    )
     {
         return false;
     }
@@ -206,7 +259,9 @@ bool uart_get_values(
     float *current
 )
 {
-    if (!uart_values_ready)
+    if (
+        !uart_values_ready
+    )
     {
         return false;
     }

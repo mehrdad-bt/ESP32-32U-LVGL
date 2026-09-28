@@ -1,8 +1,13 @@
 #include <Arduino.h>
 #include <lvgl.h>
 #include <TFT_eSPI.h>
-#include "esp_system.h"
+
+#include <stdio.h>
+#include <stdarg.h>
+#include <stdint.h>
+
 #include "esp_task_wdt.h"
+#include "esp_attr.h"
 
 extern "C"
 {
@@ -10,37 +15,71 @@ extern "C"
 #include "ui/screens.h"
 }
 
-#include "uart.h"
 #include "tasks.h"
 #include "screen_manager.h"
+#include "MainPage.h"
+#include "SettingsPage.h"
+#include "BuzzerPage.h"
+#include "VCRangePage.h"
 
 // ==================================================
-// Watchdog Configuration
+// Configuration
 // ==================================================
+
+#define SCREEN_WIDTH        320
+#define SCREEN_HEIGHT       240
+
+#define LVGL_BUF_LINES      40
+
+#define TOUCH_CAL_X_MIN     351
+#define TOUCH_CAL_X_MAX     3465
+#define TOUCH_CAL_Y_MIN     306
+#define TOUCH_CAL_Y_MAX     3446
+#define TOUCH_CAL_SWAP_XY   7
 
 #define WDT_TIMEOUT_SECONDS 4
 
+#define TRACE_INTERVAL_MS   2000
+
 // ==================================================
-// Display Configuration
+// RTC Debug Marker
 // ==================================================
 
-#define SCREEN_WIDTH  320
-#define SCREEN_HEIGHT 240
+#define DEBUG_RTC_MAGIC      0x4C56474CUL
 
-// --------------------------------------------------
-// LVGL Draw Buffer
-// RGB565 = 2 bytes per pixel
-// 320 x 20 x 2 = 12800 bytes
-// --------------------------------------------------
+#define PHASE_NONE           0UL
+#define PHASE_BEFORE_TASKS   1UL
+#define PHASE_AFTER_TASKS    2UL
+#define PHASE_BEFORE_LVGL    3UL
+#define PHASE_AFTER_LVGL     4UL
+#define PHASE_LOOP_COMPLETE  5UL
 
-#define LVGL_BUF_LINES 20
+RTC_DATA_ATTR uint32_t debug_rtc_magic = 0;
 
-TFT_eSPI tft = TFT_eSPI();
+RTC_DATA_ATTR uint32_t debug_last_phase =
+    PHASE_NONE;
+
+// ==================================================
+// TFT
+// ==================================================
+
+TFT_eSPI tft =
+    TFT_eSPI();
+
+// ==================================================
+// LVGL Display Buffer
+// ==================================================
 
 static lv_disp_draw_buf_t draw_buf;
 
 static lv_color_t buf1[
-    SCREEN_WIDTH * LVGL_BUF_LINES
+    SCREEN_WIDTH *
+    LVGL_BUF_LINES
+];
+
+static lv_color_t buf2[
+    SCREEN_WIDTH *
+    LVGL_BUF_LINES
 ];
 
 // ==================================================
@@ -49,71 +88,12 @@ static lv_color_t buf1[
 
 static uint16_t calData[5] =
 {
-    351,
-    3465,
-    306,
-    3446,
-    7
+    TOUCH_CAL_X_MIN,
+    TOUCH_CAL_X_MAX,
+    TOUCH_CAL_Y_MIN,
+    TOUCH_CAL_Y_MAX,
+    TOUCH_CAL_SWAP_XY
 };
-
-// ==================================================
-// Reset Reason
-// ==================================================
-
-static const char *reset_reason_name(
-    esp_reset_reason_t reason
-)
-{
-    switch (reason)
-    {
-        case ESP_RST_UNKNOWN:
-            return "UNKNOWN";
-
-        case ESP_RST_POWERON:
-            return "POWER_ON";
-
-        case ESP_RST_EXT:
-            return "EXTERNAL";
-
-        case ESP_RST_SW:
-            return "SOFTWARE";
-
-        case ESP_RST_PANIC:
-            return "PANIC_EXCEPTION";
-
-        case ESP_RST_INT_WDT:
-            return "INTERRUPT_WDT";
-
-        case ESP_RST_TASK_WDT:
-            return "TASK_WDT";
-
-        case ESP_RST_WDT:
-            return "OTHER_WDT";
-
-        case ESP_RST_DEEPSLEEP:
-            return "DEEP_SLEEP";
-
-        case ESP_RST_BROWNOUT:
-            return "BROWNOUT";
-
-        case ESP_RST_SDIO:
-            return "SDIO";
-
-        default:
-            return "OTHER";
-    }
-}
-
-static void print_reset_reason(void)
-{
-    esp_reset_reason_t reason =
-        esp_reset_reason();
-
-    Serial.print("Reset reason: ");
-    Serial.print((int)reason);
-    Serial.print(" - ");
-    Serial.println(reset_reason_name(reason));
-}
 
 // ==================================================
 // Watchdog
@@ -121,13 +101,9 @@ static void print_reset_reason(void)
 
 static void watchdog_init(void)
 {
-    Serial.println("Initializing task watchdog...");
-
-    // --------------------------------------------------
-    // Arduino-ESP32 2.x already initializes TWDT in some
-    // board/core configurations. If it is not initialized,
-    // initialize it here with a 4 second timeout.
-    // --------------------------------------------------
+    Serial.println(
+        "[DBG][WDT] init"
+    );
 
     esp_err_t result =
         esp_task_wdt_init(
@@ -135,39 +111,37 @@ static void watchdog_init(void)
             true
         );
 
+    if (result != ESP_OK)
+    {
+        Serial.printf(
+            "[DBG][WDT] init result=%d\n",
+            (int)result
+        );
+    }
+
+    esp_err_t add_result =
+        esp_task_wdt_add(NULL);
+
     if (
-        result != ESP_OK &&
-        result != ESP_ERR_INVALID_STATE
+        add_result != ESP_OK &&
+        add_result != ESP_ERR_INVALID_STATE
     )
     {
-        Serial.print("WDT init error: ");
-        Serial.println((int)result);
+        Serial.printf(
+            "[DBG][WDT] add result=%d\n",
+            (int)add_result
+        );
     }
 
-    // --------------------------------------------------
-    // Register the current Arduino loop task.
-    // NULL means the current task.
-    // --------------------------------------------------
-
-    esp_err_t status =
-        esp_task_wdt_status(NULL);
-
-    if (status == ESP_ERR_NOT_FOUND)
-    {
-        result =
-            esp_task_wdt_add(NULL);
-
-        if (result != ESP_OK)
-        {
-            Serial.print("WDT add error: ");
-            Serial.println((int)result);
-        }
-    }
-
-    Serial.print("Task watchdog: ENABLED, timeout = ");
-    Serial.print(WDT_TIMEOUT_SECONDS);
-    Serial.println(" seconds");
+    Serial.printf(
+        "[DBG][WDT] enabled timeout=%d sec\n",
+        WDT_TIMEOUT_SECONDS
+    );
 }
+
+// ==================================================
+// Watchdog Feed
+// ==================================================
 
 static inline void watchdog_feed(void)
 {
@@ -175,7 +149,76 @@ static inline void watchdog_feed(void)
 }
 
 // ==================================================
-// LVGL Display Flush
+// Runtime Debug Function
+// ==================================================
+
+extern "C"
+void debug_runtime(
+    const char *format,
+    ...
+)
+{
+    if (format == NULL)
+    {
+        return;
+    }
+
+    char buffer[256];
+
+    va_list args;
+
+    va_start(
+        args,
+        format
+    );
+
+    vsnprintf(
+        buffer,
+        sizeof(buffer),
+        format,
+        args
+    );
+
+    va_end(args);
+
+    Serial.print(
+        buffer
+    );
+}
+
+// ==================================================
+// Phase Name
+// ==================================================
+
+static const char *phase_name(
+    uint32_t phase
+)
+{
+    switch (phase)
+    {
+        case PHASE_BEFORE_TASKS:
+            return "BEFORE_TASKS";
+
+        case PHASE_AFTER_TASKS:
+            return "AFTER_TASKS";
+
+        case PHASE_BEFORE_LVGL:
+            return "BEFORE_LVGL";
+
+        case PHASE_AFTER_LVGL:
+            return "AFTER_LVGL";
+
+        case PHASE_LOOP_COMPLETE:
+            return "LOOP_COMPLETE";
+
+        case PHASE_NONE:
+        default:
+            return "NONE";
+    }
+}
+
+// ==================================================
+// Display Flush
 // ==================================================
 
 static void my_disp_flush(
@@ -184,11 +227,33 @@ static void my_disp_flush(
     lv_color_t *color_p
 )
 {
+    if (
+        disp == NULL ||
+        area == NULL ||
+        color_p == NULL
+    )
+    {
+        if (disp != NULL)
+        {
+            lv_disp_flush_ready(
+                disp
+            );
+        }
+
+        return;
+    }
+
     uint32_t w =
-        area->x2 - area->x1 + 1;
+        area->x2 -
+        area->x1 +
+        1;
 
     uint32_t h =
-        area->y2 - area->y1 + 1;
+        area->y2 -
+        area->y1 +
+        1;
+
+    // No Serial logging inside flush().
 
     tft.startWrite();
 
@@ -200,128 +265,77 @@ static void my_disp_flush(
     );
 
     tft.pushColors(
-        (uint16_t *)&color_p->full,
+        reinterpret_cast<uint16_t *>(
+            &color_p->full
+        ),
         w * h,
         true
     );
 
     tft.endWrite();
 
-    lv_disp_flush_ready(disp);
+    lv_disp_flush_ready(
+        disp
+    );
 }
 
 // ==================================================
-// LVGL Touch Input
+// Touch Read
 // ==================================================
 
 static void my_touchpad_read(
-    lv_indev_drv_t *indev_drv,
+    lv_indev_drv_t *indev_driver,
     lv_indev_data_t *data
 )
 {
-    uint16_t x;
-    uint16_t y;
+    (void)indev_driver;
 
-    (void)indev_drv;
+    uint16_t x = 0;
+    uint16_t y = 0;
 
-    if (tft.getTouch(&x, &y))
-    {
-        data->state =
-            LV_INDEV_STATE_PR;
+    bool touched =
+        tft.getTouch(
+            &x,
+            &y
+        );
 
-        data->point.x =
-            x;
-
-        data->point.y =
-            y;
-    }
-    else
+    if (!touched)
     {
         data->state =
             LV_INDEV_STATE_REL;
+
+        return;
     }
+
+    data->state =
+        LV_INDEV_STATE_PR;
+
+    data->point.x =
+        x;
+
+    data->point.y =
+        y;
 }
 
 // ==================================================
-// Setup
+// LVGL Display Init
 // ==================================================
 
-void setup()
+static void lvgl_display_init(void)
 {
-    // --------------------------------------------------
-    // Diagnostic Serial
-    // --------------------------------------------------
-
-    Serial.begin(115200);
-
-    delay(100);
-
-    Serial.println();
-    Serial.println("================================");
-    Serial.println("ESP32 LVGL Application Starting");
-    Serial.println("================================");
-
-    print_reset_reason();
-
-    // --------------------------------------------------
-    // Project UART
-    // --------------------------------------------------
-
-    serial_init();
-
-    // --------------------------------------------------
-    // Enable task watchdog
-    // --------------------------------------------------
-
-    watchdog_init();
-
-    // --------------------------------------------------
-    // Initialize TFT
-    // --------------------------------------------------
-
-    Serial.println("Initializing TFT...");
-
-    tft.begin();
-
-    // Landscape
-    // 320 x 240
-
-    tft.setRotation(1);
-
-    // --------------------------------------------------
-    // Initialize Touch
-    // --------------------------------------------------
-
-    Serial.println("Initializing Touch...");
-
-    tft.setTouch(calData);
-
-    // --------------------------------------------------
-    // Initialize LVGL
-    // --------------------------------------------------
-
-    Serial.println("Initializing LVGL...");
-
-    lv_init();
-
-    // ==================================================
-    // LVGL Draw Buffer
-    // ==================================================
-
     lv_disp_draw_buf_init(
         &draw_buf,
         buf1,
-        NULL,
-        SCREEN_WIDTH * LVGL_BUF_LINES
+        buf2,
+        SCREEN_WIDTH *
+        LVGL_BUF_LINES
     );
-
-    // ==================================================
-    // Register LVGL Display Driver
-    // ==================================================
 
     static lv_disp_drv_t disp_drv;
 
-    lv_disp_drv_init(&disp_drv);
+    lv_disp_drv_init(
+        &disp_drv
+    );
 
     disp_drv.hor_res =
         SCREEN_WIDTH;
@@ -338,10 +352,17 @@ void setup()
     lv_disp_drv_register(
         &disp_drv
     );
+}
 
-    // ==================================================
-    // Register LVGL Touch Driver
-    // ==================================================
+// ==================================================
+// LVGL Touch Init
+// ==================================================
+
+static void lvgl_touch_init(void)
+{
+    tft.setTouch(
+        calData
+    );
 
     static lv_indev_drv_t indev_drv;
 
@@ -358,164 +379,391 @@ void setup()
     lv_indev_drv_register(
         &indev_drv
     );
+}
 
-    // ==================================================
-    // Initialize EEZ Studio UI
-    // ==================================================
+// ==================================================
+// Setup
+// ==================================================
 
-    Serial.println("Initializing EEZ UI...");
+void setup(void)
+{
+    Serial.begin(
+        115200
+    );
 
-    ui_init();
+    delay(200);
 
-    // ==================================================
-    // LED Diagnostic Style
-    // ==================================================
+    Serial.println();
 
-    if (objects.obj0 != NULL)
+    Serial.println(
+        "================================"
+    );
+
+    Serial.println(
+        "ESP32 LVGL Application Starting"
+    );
+
+    Serial.println(
+        "================================"
+    );
+
+    // --------------------------------------------------
+    // Reset Reason
+    // --------------------------------------------------
+
+    esp_reset_reason_t reset_reason =
+        esp_reset_reason();
+
+    const char *reason_text =
+        "OTHER";
+
+    if (
+        reset_reason ==
+        ESP_RST_POWERON
+    )
     {
-        lv_obj_set_style_radius(
-            objects.obj0,
-            0,
-            LV_PART_MAIN |
-            LV_STATE_DEFAULT
-        );
+        reason_text =
+            "POWER_ON";
+    }
+    else if (
+        reset_reason ==
+        ESP_RST_TASK_WDT
+    )
+    {
+        reason_text =
+            "TASK_WDT";
+    }
+    else if (
+        reset_reason ==
+        ESP_RST_SW
+    )
+    {
+        reason_text =
+            "SOFTWARE";
+    }
 
-        lv_obj_set_style_shadow_width(
-            objects.obj0,
-            0,
-            LV_PART_MAIN |
-            LV_STATE_DEFAULT
-        );
+    Serial.printf(
+        "[RESET] code=%d reason=%s\n",
+        (int)reset_reason,
+        reason_text
+    );
 
-        lv_obj_set_style_shadow_spread(
-            objects.obj0,
-            0,
-            LV_PART_MAIN |
-            LV_STATE_DEFAULT
-        );
+    // --------------------------------------------------
+    // Previous RTC Phase
+    // --------------------------------------------------
 
-        lv_obj_set_style_border_width(
-            objects.obj0,
-            0,
-            LV_PART_MAIN |
-            LV_STATE_DEFAULT
+    if (
+        debug_rtc_magic ==
+        DEBUG_RTC_MAGIC
+    )
+    {
+        Serial.printf(
+            "[DBG][CRASH] previous phase=%lu (%s)\n",
+            (unsigned long)debug_last_phase,
+            phase_name(
+                debug_last_phase
+            )
         );
-
-        lv_obj_set_style_bg_opa(
-            objects.obj0,
-            LV_OPA_COVER,
-            LV_PART_MAIN |
-            LV_STATE_DEFAULT
+    }
+    else
+    {
+        Serial.println(
+            "[DBG][CRASH] previous phase=INVALID"
         );
     }
 
-    // ==================================================
-    // Initialize Screen Manager
-    // ==================================================
+    // --------------------------------------------------
+    // Prepare RTC Marker
+    // --------------------------------------------------
 
-    Serial.println("Initializing Screen Manager...");
+    debug_rtc_magic =
+        DEBUG_RTC_MAGIC;
+
+    debug_last_phase =
+        PHASE_NONE;
+
+    // --------------------------------------------------
+    // Watchdog
+    // --------------------------------------------------
+
+    watchdog_init();
+
+    // --------------------------------------------------
+    // TFT
+    // --------------------------------------------------
+
+    Serial.println(
+        "[DBG][MAIN] TFT init BEGIN"
+    );
+
+    tft.begin();
+
+    tft.setRotation(
+        1
+    );
+
+    Serial.println(
+        "[DBG][MAIN] TFT init END"
+    );
+
+    // --------------------------------------------------
+    // LVGL
+    // --------------------------------------------------
+
+    Serial.println(
+        "[DBG][MAIN] lv_init BEGIN"
+    );
+
+    lv_init();
+
+    Serial.println(
+        "[DBG][MAIN] lv_init END"
+    );
+
+    // --------------------------------------------------
+    // LVGL Display
+    // --------------------------------------------------
+
+    lvgl_display_init();
+
+    // --------------------------------------------------
+    // LVGL Touch
+    // --------------------------------------------------
+
+    lvgl_touch_init();
+
+    // --------------------------------------------------
+    // EEZ UI
+    // --------------------------------------------------
+
+    Serial.println(
+        "[DBG][MAIN] ui_init BEGIN"
+    );
+
+    ui_init();
+
+    Serial.println(
+        "[DBG][MAIN] ui_init END"
+    );
+
+    // --------------------------------------------------
+    // Screen Manager
+    // --------------------------------------------------
+
+    Serial.println(
+        "[DBG][MAIN] screen_manager_init BEGIN"
+    );
 
     screen_manager_init();
 
-    // ==================================================
-    // Initialize Application Tasks
-    // ==================================================
+    Serial.println(
+        "[DBG][MAIN] screen_manager_init END"
+    );
 
-    Serial.println("Initializing Tasks...");
+    // --------------------------------------------------
+    // Tasks
+    // --------------------------------------------------
+
+    Serial.println(
+        "[DBG][MAIN] tasks_init BEGIN"
+    );
 
     tasks_init();
 
-    Serial.println("System initialization complete.");
-    Serial.println("================================");
+    Serial.println(
+        "[DBG][MAIN] tasks_init END"
+    );
 
     // --------------------------------------------------
-    // First watchdog feed after initialization
+    // Initial Watchdog Feed
     // --------------------------------------------------
 
     watchdog_feed();
+
+    // --------------------------------------------------
+    // Boot Runtime Debug
+    // --------------------------------------------------
+    // Do not call nonexistent tasks_connection_lost()
+    // or tasks_data_received() here. Current project
+    // keeps those states private inside tasks.cpp.
+
+    debug_runtime(
+        "[DBG][RUNTIME] %lu ms | BOOT COMPLETE | "
+        "screen=%d | heap=%u | min=%u | block=%u | stack=%u\n",
+
+        millis(),
+
+        (int)screen_manager_get(),
+
+        ESP.getFreeHeap(),
+
+        ESP.getMinFreeHeap(),
+
+        ESP.getMaxAllocHeap(),
+
+        uxTaskGetStackHighWaterMark(NULL)
+    );
 }
+
+// ==================================================
+// Trace State
+// ==================================================
+
+static uint32_t trace_timer =
+    0;
 
 // ==================================================
 // Main Loop
 // ==================================================
 
-void loop()
+void loop(void)
 {
-    static uint32_t max_loop_time_us = 0;
-    static uint32_t last_report = 0;
-
     uint32_t loop_start =
         micros();
-
-    // --------------------------------------------------
-    // Feed watchdog before application processing
-    // --------------------------------------------------
-
-    watchdog_feed();
-
-    // --------------------------------------------------
-    // Run application tasks
-    // --------------------------------------------------
-
-    tasks_run();
-
-    // --------------------------------------------------
-    // Process LVGL
-    // --------------------------------------------------
-
-    lv_timer_handler();
-
-    // --------------------------------------------------
-    // Measure loop duration
-    // --------------------------------------------------
-
-    uint32_t elapsed =
-        micros() - loop_start;
-
-    if (elapsed > max_loop_time_us)
-    {
-        max_loop_time_us =
-            elapsed;
-    }
-
-    // --------------------------------------------------
-    // Report unusually long loops
-    // --------------------------------------------------
-
-    if (elapsed > 250000U)
-    {
-        Serial.print("WARNING: loop blocked for ");
-        Serial.print(elapsed);
-        Serial.println(" us");
-    }
-
-    // --------------------------------------------------
-    // Periodic diagnostic report
-    // --------------------------------------------------
 
     uint32_t now =
         millis();
 
-    if (now - last_report >= 5000U)
+    bool trace =
+        (
+            now - trace_timer >=
+            TRACE_INTERVAL_MS
+        );
+
+    if (trace)
     {
-        last_report = now;
+        trace_timer =
+            now;
 
-        Serial.print("Alive - max loop time: ");
-        Serial.print(max_loop_time_us);
-        Serial.println(" us");
+        Serial.println();
 
-        max_loop_time_us = 0;
+        Serial.println(
+            "[TRACE][LOOP] ===== HEARTBEAT ====="
+        );
+
+        Serial.printf(
+            "[TRACE][LOOP] "
+            "screen=%d heap=%u min=%u stack=%u\n",
+
+            (int)screen_manager_get(),
+
+            ESP.getFreeHeap(),
+
+            ESP.getMinFreeHeap(),
+
+            uxTaskGetStackHighWaterMark(NULL)
+        );
+
+        Serial.printf(
+            "[TRACE][LOOP] "
+            "previous_runtime_phase=%lu (%s)\n",
+
+            (unsigned long)debug_last_phase,
+
+            phase_name(
+                debug_last_phase
+            )
+        );
     }
 
-    // --------------------------------------------------
-    // Feed watchdog after application processing
-    // --------------------------------------------------
+    // ==================================================
+    // PHASE 1
+    // Before tasks_run()
+    // ==================================================
+
+    debug_last_phase =
+        PHASE_BEFORE_TASKS;
 
     watchdog_feed();
 
-    // --------------------------------------------------
-    // Give ESP32 background tasks CPU time
-    // --------------------------------------------------
+    tasks_run();
+
+    // ==================================================
+    // PHASE 2
+    // After tasks_run()
+    // ==================================================
+
+    debug_last_phase =
+        PHASE_AFTER_TASKS;
+
+    watchdog_feed();
+
+    // ==================================================
+    // PHASE 3
+    // Before lv_timer_handler()
+    // ==================================================
+
+    debug_last_phase =
+        PHASE_BEFORE_LVGL;
+
+    lv_timer_handler();
+
+    // ==================================================
+    // PHASE 4
+    // After lv_timer_handler()
+    // ==================================================
+
+    debug_last_phase =
+        PHASE_AFTER_LVGL;
+
+    watchdog_feed();
+
+    // ==================================================
+    // Loop timing
+    // ==================================================
+
+    uint32_t loop_dt =
+        micros() -
+        loop_start;
+
+    static uint32_t max_loop_us =
+        0;
+
+    if (
+        loop_dt >
+        max_loop_us
+    )
+    {
+        max_loop_us =
+            loop_dt;
+    }
+
+    if (
+        loop_dt >
+        200000UL
+    )
+    {
+        Serial.printf(
+            "[DBG][LOOP] LONG LOOP "
+            "dt=%lu us\n",
+
+            (unsigned long)loop_dt
+        );
+    }
+
+    // ==================================================
+    // PHASE 5
+    // Complete loop
+    // ==================================================
+
+    debug_last_phase =
+        PHASE_LOOP_COMPLETE;
+
+    if (trace)
+    {
+        Serial.printf(
+            "[TRACE][LOOP] "
+            "max=%lu us current=%lu us\n",
+
+            (unsigned long)max_loop_us,
+
+            (unsigned long)loop_dt
+        );
+
+        Serial.println(
+            "[TRACE][LOOP] ===== END HEARTBEAT ====="
+        );
+    }
 
     yield();
 }

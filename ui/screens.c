@@ -162,23 +162,6 @@ void create_screen_main() {
             lv_obj_set_style_text_color(obj, lv_color_hex(0xffffff), LV_PART_MAIN | LV_STATE_DEFAULT);
             lv_label_set_text_static(obj, "CURRENT:");
         }
-        {
-            // Error Box
-            lv_obj_t *obj = lv_msgbox_create(parent_obj, "", "", 0, false);
-            objects.error_box = obj;
-            lv_obj_set_pos(obj, 43, 60);
-            lv_obj_set_size(obj, 235, 132);
-            lv_obj_clear_flag(obj, LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
-            lv_obj_set_style_align(obj, LV_ALIGN_DEFAULT, LV_PART_MAIN | LV_STATE_DEFAULT);
-        }
-        {
-            // error_label
-            lv_obj_t *obj = lv_label_create(parent_obj);
-            objects.error_label = obj;
-            lv_obj_set_pos(obj, 103, 126);
-            lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-            lv_label_set_text(obj, "");
-        }
     }
     
     tick_screen_main();

@@ -21,31 +21,14 @@ extern "C"
 #define BUZZER_MODE_2  1
 #define BUZZER_MODE_3  2
 
-#define BUZZER_PIN              25
-#define BUZZER_FREQ             2000
-#define BUZZER_LEDC_CHANNEL     0
-#define BUZZER_LEDC_RESOLUTION  10
-
 #define FOCUS_COLOR 0xFF0000
 
 // ==================================================
-// Runtime State
+// Runtime State Owned by Buzzer Page
 // ==================================================
 
 static uint8_t buzzer_mode =
     BUZZER_MODE_1;
-
-static bool buzzer_output_state =
-    false;
-
-static uint32_t buzzer_timer =
-    0;
-
-static uint8_t buzzer_phase =
-    0;
-
-static bool buzzer_ledc_initialized =
-    false;
 
 // ==================================================
 // UI State
@@ -144,9 +127,7 @@ static void buzzer_dropdown_find(void)
 {
     if (objects.buzzer_settings == NULL)
     {
-        buzzer_dropdown =
-            NULL;
-
+        buzzer_dropdown = NULL;
         return;
     }
 
@@ -155,80 +136,6 @@ static void buzzer_dropdown_find(void)
             objects.buzzer_settings,
             0
         );
-}
-
-// ==================================================
-// LEDC Init
-// ==================================================
-
-static void buzzer_init_ledc(void)
-{
-    if (buzzer_ledc_initialized)
-    {
-        return;
-    }
-
-    double result =
-        ledcSetup(
-            BUZZER_LEDC_CHANNEL,
-            BUZZER_FREQ,
-            BUZZER_LEDC_RESOLUTION
-        );
-
-    if (result <= 0.0)
-    {
-        buzzer_ledc_initialized =
-            false;
-
-        return;
-    }
-
-    ledcAttachPin(
-        BUZZER_PIN,
-        BUZZER_LEDC_CHANNEL
-    );
-
-    ledcWriteTone(
-        BUZZER_LEDC_CHANNEL,
-        0
-    );
-
-    buzzer_ledc_initialized =
-        true;
-}
-
-// ==================================================
-// Buzzer ON
-// ==================================================
-
-static void buzzer_start(void)
-{
-    if (!buzzer_ledc_initialized)
-    {
-        return;
-    }
-
-    ledcWriteTone(
-        BUZZER_LEDC_CHANNEL,
-        BUZZER_FREQ
-    );
-}
-
-// ==================================================
-// Buzzer OFF
-// ==================================================
-
-static void buzzer_stop(void)
-{
-    if (!buzzer_ledc_initialized)
-    {
-        return;
-    }
-
-    ledcWriteTone(
-        BUZZER_LEDC_CHANNEL,
-        0
-    );
 }
 
 // ==================================================
@@ -241,12 +148,10 @@ void buzzer_set_mode(
 {
     if (mode > BUZZER_MODE_3)
     {
-        mode =
-            BUZZER_MODE_3;
+        mode = BUZZER_MODE_3;
     }
 
-    buzzer_mode =
-        mode;
+    buzzer_mode = mode;
 }
 
 uint8_t buzzer_get_mode(void)
@@ -272,9 +177,7 @@ static void clear_buzzer_focus(void)
         );
     }
 
-    if (
-        objects.buzzer_settings_page_back_button != NULL
-    )
+    if (objects.buzzer_settings_page_back_button != NULL)
     {
         lv_obj_set_style_border_width(
             objects.buzzer_settings_page_back_button,
@@ -291,17 +194,12 @@ static void clear_buzzer_focus(void)
 
 static void apply_buzzer_focus(void)
 {
-    if (
-        !screen_manager_is(
-            SCREEN_ID_BUZZER_SETTINGS
-        )
-    )
+    if (!screen_manager_is(SCREEN_ID_BUZZER_SETTINGS))
     {
         return;
     }
 
     clear_buzzer_focus();
-
     buzzer_dropdown_find();
 
     if (!buzzer_focus_back)
@@ -325,9 +223,7 @@ static void apply_buzzer_focus(void)
     }
     else
     {
-        if (
-            objects.buzzer_settings_page_back_button != NULL
-        )
+        if (objects.buzzer_settings_page_back_button != NULL)
         {
             lv_obj_set_style_border_width(
                 objects.buzzer_settings_page_back_button,
@@ -409,38 +305,10 @@ static void buzzer_dropdown_change(
 
 void buzzer_page_init(void)
 {
-    buzzer_init_ledc();
-
-    buzzer_stop();
-
-    buzzer_mode =
-        BUZZER_MODE_1;
-
-    buzzer_output_state =
-        false;
-
-    buzzer_timer =
-        millis();
-
-    buzzer_phase =
-        0;
-
-    buzzer_focus_back =
-        false;
-
-    buzzer_dropdown_open =
-        false;
-
-    page_was_active =
-        false;
-
-    // --------------------------------------------------
-    // Persian Labels
-    // --------------------------------------------------
-
-    configure_buzzer_labels();
-
-    buzzer_dropdown_find();
+    buzzer_mode = BUZZER_MODE_1;
+    buzzer_focus_back = false;
+    buzzer_dropdown_open = false;
+    page_was_active = false;
 
     if (buzzer_dropdown != NULL)
     {
@@ -457,15 +325,9 @@ void buzzer_page_init(void)
 
 void buzzer_page_update(void)
 {
-    if (
-        !screen_manager_is(
-            SCREEN_ID_BUZZER_SETTINGS
-        )
-    )
+    if (!screen_manager_is(SCREEN_ID_BUZZER_SETTINGS))
     {
-        page_was_active =
-            false;
-
+        page_was_active = false;
         return;
     }
 
@@ -476,23 +338,18 @@ void buzzer_page_update(void)
 
     if (!page_was_active)
     {
-        buzzer_focus_back =
-            false;
+        configure_buzzer_labels();
 
-        buzzer_dropdown_open =
-            false;
+        buzzer_focus_back = false;
+        buzzer_dropdown_open = false;
 
         if (buzzer_dropdown != NULL)
         {
-            lv_dropdown_close(
-                buzzer_dropdown
-            );
+            lv_dropdown_close(buzzer_dropdown);
         }
 
         apply_buzzer_focus();
-
-        page_was_active =
-            true;
+        page_was_active = true;
     }
 
     if (buzzer_dropdown == NULL)
@@ -507,10 +364,7 @@ void buzzer_page_update(void)
                 buzzer_dropdown
             );
 
-        if (
-            selected !=
-            buzzer_mode
-        )
+        if (selected != buzzer_mode)
         {
             lv_dropdown_set_selected(
                 buzzer_dropdown,
@@ -526,11 +380,7 @@ void buzzer_page_update(void)
 
 void buzzer_page_handle_right(void)
 {
-    if (
-        !screen_manager_is(
-            SCREEN_ID_BUZZER_SETTINGS
-        )
-    )
+    if (!screen_manager_is(SCREEN_ID_BUZZER_SETTINGS))
     {
         return;
     }
@@ -543,13 +393,11 @@ void buzzer_page_handle_right(void)
 
     if (!buzzer_focus_back)
     {
-        buzzer_focus_back =
-            true;
+        buzzer_focus_back = true;
     }
     else
     {
-        buzzer_focus_back =
-            false;
+        buzzer_focus_back = false;
     }
 
     apply_buzzer_focus();
@@ -561,11 +409,7 @@ void buzzer_page_handle_right(void)
 
 void buzzer_page_handle_select(void)
 {
-    if (
-        !screen_manager_is(
-            SCREEN_ID_BUZZER_SETTINGS
-        )
-    )
+    if (!screen_manager_is(SCREEN_ID_BUZZER_SETTINGS))
     {
         return;
     }
@@ -581,8 +425,7 @@ void buzzer_page_handle_select(void)
 
         if (!buzzer_dropdown_open)
         {
-            buzzer_dropdown_open =
-                true;
+            buzzer_dropdown_open = true;
 
             lv_dropdown_open(
                 buzzer_dropdown
@@ -592,8 +435,7 @@ void buzzer_page_handle_select(void)
         }
         else
         {
-            buzzer_dropdown_open =
-                false;
+            buzzer_dropdown_open = false;
 
             lv_dropdown_close(
                 buzzer_dropdown
@@ -626,6 +468,9 @@ void buzzer_page_handle_select(void)
 // ==================================================
 // Runtime Buzzer Task
 // ==================================================
+// The current project runs the buzzer runtime from tasks.cpp.
+// This function is kept as a compatibility entry point.
+// ==================================================
 
 void buzzer_page_runtime_task(
     bool data_received,
@@ -633,101 +478,7 @@ void buzzer_page_runtime_task(
     bool low_voltage
 )
 {
-    if (
-        !data_received ||
-        connection_lost
-    )
-    {
-        buzzer_stop();
-
-        buzzer_output_state =
-            false;
-
-        buzzer_phase =
-            0;
-
-        return;
-    }
-
-    if (!low_voltage)
-    {
-        buzzer_stop();
-
-        buzzer_output_state =
-            false;
-
-        buzzer_phase =
-            0;
-
-        return;
-    }
-
-    uint32_t now =
-        millis();
-
-    uint32_t interval =
-        0;
-
-    if (
-        buzzer_mode ==
-        BUZZER_MODE_1
-    )
-    {
-        interval =
-            buzzer_output_state
-            ? 200
-            : 700;
-    }
-    else if (
-        buzzer_mode ==
-        BUZZER_MODE_2
-    )
-    {
-        interval =
-            100;
-    }
-    else
-    {
-        interval =
-            500;
-    }
-
-    if (
-        now - buzzer_timer <
-        interval
-    )
-    {
-        return;
-    }
-
-    buzzer_timer =
-        now;
-
-    buzzer_output_state =
-        !buzzer_output_state;
-
-    if (buzzer_output_state)
-    {
-        buzzer_start();
-    }
-    else
-    {
-        buzzer_stop();
-
-        if (
-            buzzer_mode ==
-            BUZZER_MODE_2
-        )
-        {
-            buzzer_phase++;
-
-            if (
-                buzzer_phase >= 2
-            )
-            {
-                buzzer_phase =
-                    0;
-            }
-        }
-    }
+    (void)data_received;
+    (void)connection_lost;
+    (void)low_voltage;
 }

@@ -31,8 +31,6 @@ typedef struct _objects_t {
     lv_obj_t *status_text_main_page;
     lv_obj_t *voltage_label_main_static;
     lv_obj_t *current_label_main_static;
-    lv_obj_t *error_box;
-    lv_obj_t *error_label;
     lv_obj_t *exit_settings;
     lv_obj_t *exit_label_settinhs_page;
     lv_obj_t *buzzer;
